@@ -1,8 +1,10 @@
-from rest_framework.views import APIView
-from rest_framework import status
-from rest_framework.response import Response
 from datetime import datetime
 
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+from .compat import get_user_model
 from .settings import api_settings
 from .serializers import (
     JSONWebTokenSerializer, RefreshJSONWebTokenSerializer,
@@ -18,6 +20,12 @@ class JSONWebTokenAPIView(APIView):
     """
     permission_classes = ()
     authentication_classes = ()
+    user_model = None
+
+    def __init__(self, user_model=None, serializer_class=None, **kwargs):
+        self.user_model = get_user_model(user_model or self.user_model)
+        self.serializer_class = serializer_class or self.serializer_class
+        super(JSONWebTokenAPIView, self).__init__(**kwargs)
 
     def get_serializer_context(self):
         """

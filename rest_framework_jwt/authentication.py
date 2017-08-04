@@ -1,14 +1,15 @@
 import jwt
 
-from django.contrib.auth import get_user_model
 from django.utils.encoding import smart_text
 from django.utils.translation import ugettext as _
+
 from rest_framework import exceptions
 from rest_framework.authentication import (
     BaseAuthentication, get_authorization_header
 )
 
-from rest_framework_jwt.settings import api_settings
+from .compat import get_user_model
+from .settings import api_settings
 
 
 jwt_decode_handler = api_settings.JWT_DECODE_HANDLER
@@ -19,6 +20,10 @@ class BaseJSONWebTokenAuthentication(BaseAuthentication):
     """
     Token based authentication using the JSON Web Token standard.
     """
+    user_model = None
+
+    def get_jwt_value(self, request):
+        raise NotImplementedError
 
     def authenticate(self, request):
         """
@@ -30,7 +35,7 @@ class BaseJSONWebTokenAuthentication(BaseAuthentication):
             return None
 
         try:
-            payload = jwt_decode_handler(jwt_value)
+            payload = jwt_decode_handler(jwt_value, self.user_model)
         except jwt.ExpiredSignature:
             msg = _('Signature has expired.')
             raise exceptions.AuthenticationFailed(msg)
@@ -42,13 +47,12 @@ class BaseJSONWebTokenAuthentication(BaseAuthentication):
 
         user = self.authenticate_credentials(payload)
 
-        return (user, jwt_value)
+        return user, jwt_value
 
     def authenticate_credentials(self, payload):
         """
         Returns an active user that matches the payload's user id and email.
         """
-        User = get_user_model()
         username = jwt_get_username_from_payload(payload)
 
         if not username:
@@ -56,8 +60,9 @@ class BaseJSONWebTokenAuthentication(BaseAuthentication):
             raise exceptions.AuthenticationFailed(msg)
 
         try:
-            user = User.objects.get_by_natural_key(username)
-        except User.DoesNotExist:
+            user_model = get_user_model(self.user_model)
+            user = user_model.objects.get_by_natural_key(username)
+        except user_model.DoesNotExist:
             msg = _('Invalid signature.')
             raise exceptions.AuthenticationFailed(msg)
 
@@ -106,4 +111,5 @@ class JSONWebTokenAuthentication(BaseJSONWebTokenAuthentication):
         header in a `401 Unauthenticated` response, or `None` if the
         authentication scheme should return `403 Permission Denied` responses.
         """
-        return '{0} realm="{1}"'.format(api_settings.JWT_AUTH_HEADER_PREFIX, self.www_authenticate_realm)
+        return '{0} realm="{1}"'.format(api_settings.JWT_AUTH_HEADER_PREFIX,
+                                        self.www_authenticate_realm)

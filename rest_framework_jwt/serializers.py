@@ -3,16 +3,15 @@ import jwt
 from calendar import timegm
 from datetime import datetime, timedelta
 
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import authenticate
 from django.utils.translation import ugettext as _
+
 from rest_framework import serializers
-from .compat import Serializer
 
-from rest_framework_jwt.settings import api_settings
-from rest_framework_jwt.compat import get_username_field, PasswordField
+from .settings import api_settings
+from .compat import Serializer, get_username_field, PasswordField
 
 
-User = get_user_model()
 jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
 jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
 jwt_decode_handler = api_settings.JWT_DECODE_HANDLER
@@ -36,9 +35,12 @@ class JSONWebTokenSerializer(Serializer):
         self.fields[self.username_field] = serializers.CharField()
         self.fields['password'] = PasswordField(write_only=True)
 
+    def authenticate(self, **credentials):
+        return authenticate(**credentials)
+
     @property
     def username_field(self):
-        return get_username_field()
+        return get_username_field(self.user_model)
 
     def validate(self, attrs):
         credentials = {
@@ -47,7 +49,7 @@ class JSONWebTokenSerializer(Serializer):
         }
 
         if all(credentials.values()):
-            user = authenticate(**credentials)
+            user = self.authenticate(**credentials)
 
             if user:
                 if not user.is_active:
@@ -57,7 +59,7 @@ class JSONWebTokenSerializer(Serializer):
                 payload = jwt_payload_handler(user)
 
                 return {
-                    'token': jwt_encode_handler(payload),
+                    'token': jwt_encode_handler(payload, self.user_model),
                     'user': user
                 }
             else:
@@ -83,7 +85,7 @@ class VerificationBaseSerializer(Serializer):
         # Check payload valid (based off of JSONWebTokenAuthentication,
         # may want to refactor)
         try:
-            payload = jwt_decode_handler(token)
+            payload = jwt_decode_handler(token, self.user_model)
         except jwt.ExpiredSignature:
             msg = _('Signature has expired.')
             raise serializers.ValidationError(msg)
@@ -100,10 +102,9 @@ class VerificationBaseSerializer(Serializer):
             msg = _('Invalid payload.')
             raise serializers.ValidationError(msg)
 
-        # Make sure user exists
         try:
-            user = User.objects.get_by_natural_key(username)
-        except User.DoesNotExist:
+            user = self.user_model.objects.get_by_natural_key(username)
+        except self.user_model.DoesNotExist:
             msg = _("User doesn't exist.")
             raise serializers.ValidationError(msg)
 
@@ -166,6 +167,6 @@ class RefreshJSONWebTokenSerializer(VerificationBaseSerializer):
         new_payload['orig_iat'] = orig_iat
 
         return {
-            'token': jwt_encode_handler(new_payload),
+            'token': jwt_encode_handler(new_payload, self.user_model),
             'user': user
         }
