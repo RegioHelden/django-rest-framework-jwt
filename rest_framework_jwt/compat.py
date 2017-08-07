@@ -15,7 +15,7 @@ class Serializer(serializers.Serializer):
     @property
     def user_model(self):
         view = self.context.get('view')
-        return getattr(view, 'user_model')
+        return getattr(view, 'user_model', None)
 
 
 class PasswordField(serializers.CharField):

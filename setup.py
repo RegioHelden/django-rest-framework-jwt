@@ -18,11 +18,11 @@ def get_version(package):
         return re.search("__version__ = ['\"]([^'\"]+)['\"]", src).group(1)
 
 
-name = 'djangorestframework-jwt'
+name = 'djangorestframework-jwt-custom-user'
 version = get_version('rest_framework_jwt')
 package = 'rest_framework_jwt'
 description = 'JSON Web Token based authentication for Django REST framework'
-url = 'https://github.com/GetBlimp/django-rest-framework-jwt'
+url = 'https://github.com/RegioHelden/django-rest-framework-jwt/tree/custom_user_model'
 author = 'Jose Padilla'
 author_email = 'jpadilla@getblimp.com'
 license = 'MIT'
